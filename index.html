@@ -271,16 +271,26 @@
     }
   }
 
-  // פולינג עדין בזמן שמסך הילד/ה פתוח, כדי לתפוס עדכון שנעשה במכשיר אחר.
-  var pollTimer = null, pollingChildId = null;
+  // פולינג עדין בזמן שמסך ילד/ה או מסך הורים פתוח, כדי לתפוס עדכון שנעשה
+  // במכשיר אחר בלי צורך ברענון ידני.
+  var pollTimer = null, pollingKey = null;
   function syncPollingGuard() {
+    var key = null;
+    var fn = null;
     if (state.view === "child" && isConnected()) {
-      if (pollTimer && pollingChildId === state.childId) return;
+      key = "child:" + state.childId;
+      fn = fetchReportFromScript;
+    } else if (state.view === "parent" && isConnected()) {
+      key = "parent";
+      fn = loadParentSummary;
+    }
+    if (key) {
+      if (pollTimer && pollingKey === key) return;
       if (pollTimer) clearInterval(pollTimer);
-      pollingChildId = state.childId;
-      pollTimer = setInterval(fetchReportFromScript, 8000);
+      pollingKey = key;
+      pollTimer = setInterval(fn, 8000);
     } else if (pollTimer) {
-      clearInterval(pollTimer); pollTimer = null; pollingChildId = null;
+      clearInterval(pollTimer); pollTimer = null; pollingKey = null;
     }
   }
 
@@ -404,8 +414,10 @@
   async function loadParentSummary() {
     if (!isConnected()) { state.remoteSummary = null; render(); return; }
     var res = await callScript({ action: "getSummary" });
-    state.remoteSummary = (res && res.ok && Array.isArray(res.weeks)) ? res.weeks : null;
-    render();
+    var next = (res && res.ok && Array.isArray(res.weeks)) ? res.weeks : null;
+    var changed = JSON.stringify(next) !== JSON.stringify(state.remoteSummary);
+    state.remoteSummary = next;
+    if (changed) render();
   }
 
   function currentSummaryRows() {
@@ -723,7 +735,10 @@
     var exportBtn = app.querySelector("#export-btn");
     if (exportBtn) exportBtn.addEventListener("click", exportExcel);
     var refreshBtn = app.querySelector("#refresh-btn");
-    if (refreshBtn) refreshBtn.addEventListener("click", loadParentSummary);
+    if (refreshBtn) refreshBtn.addEventListener("click", function () {
+      showToast("מרענן…");
+      loadParentSummary();
+    });
     var refreshChildBtn = app.querySelector("#refresh-child-btn");
     if (refreshChildBtn) refreshChildBtn.addEventListener("click", function () {
       if (!isConnected()) { showToast("לא מחובר לגיליון"); return; }
