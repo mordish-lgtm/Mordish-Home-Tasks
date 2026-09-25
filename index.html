@@ -288,7 +288,7 @@
       if (pollTimer && pollingKey === key) return;
       if (pollTimer) clearInterval(pollTimer);
       pollingKey = key;
-      pollTimer = setInterval(fn, 8000);
+      pollTimer = setInterval(fn, 2000);
     } else if (pollTimer) {
       clearInterval(pollTimer); pollTimer = null; pollingKey = null;
     }
